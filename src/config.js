@@ -1,0 +1,61 @@
+import { parseCookieHeader } from './guard.js';
+
+const DEFAULT_TIMEOUT_MS = 45_000;
+
+function bool(value, fallback) {
+  if (value === undefined || value === null || value === '') return fallback;
+  return /^(1|true|yes|on)$/i.test(String(value).trim());
+}
+
+function int(value, fallback) {
+  const n = Number.parseInt(String(value ?? ''), 10);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+/**
+ * Build runtime configuration from environment + CLI flags.
+ *
+ * @param {string[]} argv process.argv.slice(2)
+ */
+export function loadConfig(env = process.env, argv = []) {
+  const flags = new Set(argv.filter((a) => a.startsWith('--')));
+  const cookie = (env.SEAART_COOKIE || '').trim();
+  const userAgent = (env.SEAART_USER_AGENT || '').trim();
+
+  const missing = [];
+  if (!cookie) missing.push('SEAART_COOKIE');
+  if (!userAgent) missing.push('SEAART_USER_AGENT');
+
+  const config = {
+    cookie,
+    userAgent,
+    cookieDomain: (env.SEAART_COOKIE_DOMAIN || '.seaart.ai').trim(),
+    locale: (env.SEAART_LOCALE || 'zhTW').trim(),
+    headless: !flags.has('--headed') && bool(env.SEAART_HEADLESS, true),
+    dryRun: flags.has('--dry-run') || bool(env.SEAART_DRY_RUN, false),
+    dump: flags.has('--dump') || bool(env.SEAART_DUMP, false),
+    dumpDir: (env.SEAART_DUMP_DIR || './dump').trim(),
+    timeoutMs: int(env.SEAART_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
+    settleMs: int(env.SEAART_SETTLE_MS, 2_500),
+    slowMo: int(env.SEAART_SLOW_MO, 0),
+    // Task pages: the two surfaces named in the requirement.
+    urls: {
+      checkin: (env.SEAART_CHECKIN_URL ||
+        'https://www.seaart.ai/zhTW/battlePass').trim(),
+      gift: (env.SEAART_GIFT_URL ||
+        'https://www.seaart.ai/zhTW/mall?dotFrom=svip_banner').trim()
+    },
+    // Manual overrides for when the site changes. CSS selectors.
+    selectors: {
+      checkinEntry: (env.SEAART_CHECKIN_ENTRY || '').trim(),
+      giftEntry: (env.SEAART_GIFT_ENTRY || '').trim(),
+      claimButton: (env.SEAART_CLAIM_BUTTON || '').trim()
+    }
+  };
+
+  config.cookies = missing.length === 0
+    ? parseCookieHeader(config.cookie, config.cookieDomain)
+    : [];
+
+  return { config, missing };
+}

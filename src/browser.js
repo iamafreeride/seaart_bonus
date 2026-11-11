@@ -1,0 +1,91 @@
+/**
+ * Launch Chromium and build an authenticated context from the raw cookie
+ * header plus the user agent. No credential ever leaves this process.
+ *
+ * `playwright` is imported lazily so that config-only paths (missing env,
+ * --help, unit tests) work without the browser package installed.
+ *
+ * @param {object} config
+ */
+export async function openSession(config) {
+  let chromium;
+  try {
+    ({ chromium } = await import('playwright'));
+  } catch {
+    throw new Error(
+      'playwright is not installed — run `npm install` locally, or use the Docker image where it is preinstalled'
+    );
+  }
+  const browser = await chromium.launch({
+    headless: config.headless,
+    slowMo: config.slowMo || undefined,
+    args: ['--no-sandbox', '--disable-dev-shm-usage']
+  });
+
+  const context = await browser.newContext({
+    userAgent: config.userAgent,
+    locale: 'zh-TW',
+    timezoneId: 'Asia/Taipei',
+    viewport: { width: 1440, height: 1000 },
+    extraHTTPHeaders: {
+      'Accept-Language': 'zh-TW,zh;q=0.9,en;q=0.8'
+    }
+  });
+
+  await context.addCookies(config.cookies);
+
+  // Match the locale the cookies were minted for.
+  if (config.locale && config.locale !== 'zhTW') {
+    await context.addCookies([
+      {
+        name: 'locale',
+        value: config.locale,
+        domain: config.cookieDomain,
+        path: '/',
+        httpOnly: false,
+        secure: true,
+        sameSite: 'None'
+      }
+    ]);
+  }
+
+  const page = await context.newPage();
+  page.setDefaultTimeout(config.timeoutMs);
+  page.setDefaultNavigationTimeout(config.timeoutMs);
+
+  return { browser, context, page };
+}
+
+/**
+ * Heuristic login probe. Returns { loggedIn, evidence }.
+ * A false negative here does not stop the run — it only produces a warning.
+ */
+export async function probeLogin(page) {
+  const probe = await page.evaluate(() => {
+    const text = (document.body.innerText || '').replace(/\s+/g, '');
+    const hasAvatar = !!document.querySelector(
+      '[class*="avatar"],[class*="Avatar"],[class*="user-info"],[class*="userInfo"]'
+    );
+    const hasLoginCta = /登入|登录|Signin|SignIn/i.test(text);
+    return { hasAvatar, hasLoginCta, sample: text.slice(0, 120) };
+  });
+  const loggedIn = probe.hasAvatar || !probe.hasLoginCta;
+  return { loggedIn, evidence: probe };
+}
+
+export async function gotoAndSettle(page, url, settleMs) {
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(settleMs);
+  // Dismiss cookie/announcement overlays that would swallow clicks.
+  await dismissOverlays(page);
+}
+
+async function dismissOverlays(page) {
+  const labels = [/^我知道了$/, /^知道了$/, /^同意$/, /^接受$/, /^關閉$/, /^关闭$/];
+  for (const label of labels) {
+    const btn = page.getByRole('button', { name: label }).first();
+    if (await btn.count().catch(() => 0)) {
+      await btn.click({ timeout: 1_500 }).catch(() => {});
+    }
+  }
+}
