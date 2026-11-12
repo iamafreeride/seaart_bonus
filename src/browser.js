@@ -34,6 +34,22 @@ export async function openSession(config) {
 
   await context.addCookies(config.cookies);
 
+  // Optional localStorage replay: some sessions keep an auth token there, so a
+  // cookie-only login can render the avatar yet fail feature-gated requests.
+  const storage = config.localStorage || {};
+  if (Object.keys(storage).length > 0) {
+    await context.addInitScript((entries) => {
+      try {
+        if (!/(^|\.)seaart\.(ai|me)$/.test(location.hostname)) return;
+        for (const [key, value] of Object.entries(entries)) {
+          window.localStorage.setItem(key, value);
+        }
+      } catch {
+        /* private mode or quota — ignore */
+      }
+    }, storage);
+  }
+
   // Match the locale the cookies were minted for.
   if (config.locale && config.locale !== 'zhTW') {
     await context.addCookies([

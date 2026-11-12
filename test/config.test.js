@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadConfig } from '../src/config.js';
+import { loadConfig, parseJsonObject } from '../src/config.js';
+
+test('parseJsonObject tolerates junk and arrays', () => {
+  assert.deepEqual(parseJsonObject(''), {});
+  assert.deepEqual(parseJsonObject('not json'), {});
+  assert.deepEqual(parseJsonObject('[1,2]'), {});
+  assert.deepEqual(parseJsonObject('{"a":"b"}'), { a: 'b' });
+});
 
 test('missing credentials are reported, not thrown', () => {
   const { config, missing } = loadConfig({}, []);

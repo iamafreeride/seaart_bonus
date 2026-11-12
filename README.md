@@ -99,6 +99,7 @@ docker compose run --rm seaart-bonus
 | `SEAART_GIFT_ENTRY` | | 自動 | 禮盒入口 CSS |
 | `SEAART_CLAIM_BUTTON` | | 自動 | 領取按鈕 CSS |
 | `SEAART_DISCOVER` | | `false` | 等同 `--discover` |
+| `SEAART_LOCAL_STORAGE` | | `{}` | 選用：localStorage JSON，補足 cookie 不足的登入態 |
 | `SEAART_DUMP_DIR` | | `./dump` | 校正輸出目錄 |
 
 CLI 旗標：`--headed`（顯示瀏覽器）、`--dry-run`（只找不點）、`--dump`（匯出頁面與按鈕清單）、

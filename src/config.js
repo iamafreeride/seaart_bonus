@@ -12,6 +12,18 @@ function int(value, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+/** Parse an optional JSON object env var; bad input degrades to {}. */
+export function parseJsonObject(value) {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
 /**
  * Build runtime configuration from environment + CLI flags.
  *
@@ -48,6 +60,9 @@ export function loadConfig(env = process.env, argv = []) {
       home: (env.SEAART_HOME_URL || 'https://www.seaart.ai/zhTW').trim()
     },
     discover: flags.has('--discover') || bool(env.SEAART_DISCOVER, false),
+    // Optional localStorage snapshot (JSON object). Some sites keep part of the
+    // session there, so cookie-only login can look "logged in" but not be.
+    localStorage: parseJsonObject(env.SEAART_LOCAL_STORAGE),
     // Manual overrides for when the site changes. CSS selectors.
     selectors: {
       checkinEntry: (env.SEAART_CHECKIN_ENTRY || '').trim(),
