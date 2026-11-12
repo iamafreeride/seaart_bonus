@@ -35,6 +35,13 @@ const TASKS = [
 
 const RELEVANT = /簽|签|禮|礼|盒|每日|獎|奖|領|领|福|紅包|红包/;
 
+/** Content that must exist before we consider a page ready to click. */
+const SIGNALS = {
+  checkin: ['.checkin-task', '.checkin-go-btn', '.tiv2-right', '.task-item'],
+  gift: ['.gift-button', '.gift-content', '.mall-tabs-v2'],
+  home: ['main', '#__nuxt > div']
+};
+
 function ts() {
   return new Date().toISOString().replace('T', ' ').slice(0, 19);
 }
@@ -59,7 +66,7 @@ async function discover(session, config) {
   });
   for (const url of urls) {
     log(`--- discover: ${url}`);
-    await gotoAndSettle(session.page, url, config.settleMs, log);
+    await gotoAndSettle(session.page, url, config, log, ['.battle-pass-page', 'main']);
     const labels = await listLabels(session.page, 120);
     printLabels(labels);
     log(`    (${labels.length} visible clickable labels)`);
@@ -102,7 +109,7 @@ async function main() {
         tried.push(url);
         log(`${task.label}: ${url}`);
         try {
-          await gotoAndSettle(session.page, url, config.settleMs, log);
+          await gotoAndSettle(session.page, url, config, log, SIGNALS[urlKey]);
 
           if (!loginChecked) {
             const probe = await probeLogin(session.page);

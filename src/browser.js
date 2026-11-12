@@ -93,23 +93,16 @@ export async function probeLogin(page) {
 
 /**
  * SeaArt is a Nuxt SPA: the SSR placeholder disappears long before the season
- * panel renders (observed up to ~10s on battlePass). Acting too early finds no
- * buttons at all, so wait for a real content signal first.
+ * panel renders. The caller supplies the content signals it actually needs, so
+ * "ready" means "the buttons we are going to click exist".
  */
-async function waitForAppReady(page, timeoutMs = 20_000) {
+export async function waitForAppReady(page, timeoutMs, signals = []) {
   await page.waitForSelector('.ssr-loading', { state: 'detached', timeout: 8_000 }).catch(() => {});
 
-  const signals = [
-    '.battle-pass-page',
-    '.checkin-task',
-    '.gift-button',
-    '.mall-tabs-v2',
-    '#__nuxt > div',
-    'main'
-  ];
+  const wanted = signals.length > 0 ? signals : ['#__nuxt > div', 'main'];
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    for (const sel of signals) {
+    for (const sel of wanted) {
       if (await page.locator(sel).first().count().catch(() => 0)) return true;
     }
     await page.waitForTimeout(400);
@@ -117,11 +110,13 @@ async function waitForAppReady(page, timeoutMs = 20_000) {
   return false;
 }
 
-export async function gotoAndSettle(page, url, settleMs, log = () => {}) {
+export async function gotoAndSettle(page, url, config, log = () => {}, signals = []) {
   await page.goto(url, { waitUntil: 'domcontentloaded' });
-  const ready = await waitForAppReady(page);
-  if (!ready) log('warning: app did not report ready within 20s; continuing anyway');
-  await page.waitForTimeout(Math.max(600, Math.floor(settleMs / 2)));
+  const ready = await waitForAppReady(page, config.waitMs, signals);
+  if (!ready) {
+    log(`warning: no content signal within ${config.waitSeconds}s; continuing anyway`);
+  }
+  await page.waitForTimeout(Math.max(600, Math.floor(config.settleMs / 2)));
   // Cookie/announcement overlays first, then paid VIP promotions: both would
   // otherwise intercept pointer events on the real buttons.
   await dismissOverlays(page);

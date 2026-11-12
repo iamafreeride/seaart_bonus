@@ -99,6 +99,8 @@ docker compose run --rm seaart-bonus
 | `SEAART_USER_AGENT` | ✅ | — | 對應瀏覽器 UA |
 | `SEAART_LOCALE` | | `zhTW` | 語系前綴 |
 | `SEAART_HEADLESS` | | `true` | 是否無頭 |
+| **`SEAART_WAIT_SECONDS`** | | **`60`** | 等待 SPA 渲染內容的總秒數（最小 5） |
+| **`SEAART_MAX_ATTEMPTS`** | | **`3`** | 領取→彈窗→關閉→重試 的次數 |
 | `SEAART_SETTLE_MS` | | `2500` | 每次點擊後等待 |
 | `SEAART_TIMEOUT_MS` | | `45000` | 導覽/元素逾時 |
 | `SEAART_SLOW_MO` | | `0` | 每步減速（除錯用） |
@@ -126,13 +128,17 @@ docker run
    ├─ 解析 SEAART_COOKIE → Playwright cookie（domain .seaart.ai）
    ├─ 建立 context（UA / zh-TW / Asia/Taipei / 1440x1000）
    │
-   ├─ goto battlePass → 偵測登入
-   │     └─ click .checkin-go-btn（賽季任務「每日」的簽到）
-   │           └─ 按鈕變「已領取」→ claimed
+   ├─ 每個頁面：等待「真正的內容元素」出現（最多 SEAART_WAIT_SECONDS，預設 60s）
+   │     └─ 再關閉 cookies / 公告 / VIP・活動彈窗（只按關閉、跳過、Esc）
    │
-   ├─ goto /zhTW/decorations
-   │     └─ click .gift-button（每日免費禮盒「免費打開」）
-   │           └─ 跳過開箱動畫 → 按鈕消失/變付費 → claimed
+   ├─ battlePass → 切到「每日」分頁 → click .checkin-go-btn
+   │     └─ 按鈕變「已領取」→ claimed
+   │
+   ├─ decorations → click .gift-button（免費打開）
+   │     └─ 跳過開箱動畫 → 按鈕消失/變付費 → claimed
+   │
+   ├─ 若某一步失敗（多半是被 VIP 彈窗蓋住）：
+   │     └─ 關閉彈窗 → 重新嘗試，最多 SEAART_MAX_ATTEMPTS 次（預設 3）
    │
    └─ 輸出 JSON 摘要 → 關閉瀏覽器 → 進程結束（容器停止）
 ```
@@ -141,6 +147,14 @@ docker run
 會退回文字關鍵字（含 `aria-label` / `img alt`）並自動往上找可點擊祖先。
 
 成功判定：`已領取 / 已簽到 / 成功 / 恭喜` 等字樣，或（禮盒）觸發按鈕消失。
+
+### 為什麼要等 60 秒
+
+實測（2026-11-12）：`battlePass` 的賽季面板不是 DOMContentLoaded 就出現，
+而是 Nuxt hydration 後才掛載；同一支帳號有時 8–10 秒、有時超過 20 秒仍停在載入圈。
+早期版本只等 2.5 秒，於是 `.checkin-go-btn` 還不存在就被判定 `not_found`。
+現在會等到真正的內容元素（`.checkin-task` / `.gift-button` …）出現為止，
+上限由 `SEAART_WAIT_SECONDS` 控制。
 
 ### 付費/VIP 推廣彈窗
 

@@ -68,3 +68,31 @@ test('numeric and boolean env parsing is defensive', () => {
   assert.equal(config.timeoutMs, 45_000);
   assert.equal(config.headless, false);
 });
+
+test('wait time defaults to 60s and is configurable', () => {
+  const base = loadConfig({ SEAART_COOKIE: 'a=1', SEAART_USER_AGENT: 'UA/1.0' }, []).config;
+  assert.equal(base.waitSeconds, 60);
+  assert.equal(base.waitMs, 60_000);
+  assert.equal(base.maxAttempts, 3);
+
+  const custom = loadConfig(
+    {
+      SEAART_COOKIE: 'a=1',
+      SEAART_USER_AGENT: 'UA/1.0',
+      SEAART_WAIT_SECONDS: '15',
+      SEAART_MAX_ATTEMPTS: '5'
+    },
+    []
+  ).config;
+  assert.equal(custom.waitSeconds, 15);
+  assert.equal(custom.waitMs, 15_000);
+  assert.equal(custom.maxAttempts, 5);
+});
+
+test('wait time cannot be set below 5s', () => {
+  const { config } = loadConfig(
+    { SEAART_COOKIE: 'a=1', SEAART_USER_AGENT: 'UA/1.0', SEAART_WAIT_SECONDS: '0' },
+    []
+  );
+  assert.equal(config.waitSeconds, 5);
+});

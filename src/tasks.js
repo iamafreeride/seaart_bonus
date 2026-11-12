@@ -1,4 +1,5 @@
 import { BLOCK_CONTAINER_HINTS, DIALOG_SELECTOR } from './guard.js';
+import { dismissPromos } from './promos.js';
 
 const CLICKABLE_CLASS = /btn|button|tab|item|entry|link/i;
 const DONE_TEXT = /已領取|已领取|已簽到|已签到|領取成功|领取成功|明天再來|明日再來|明天再来|已打開|已打开/;
@@ -259,7 +260,7 @@ async function ensureDailyTab(page) {
  * @param {object} config
  * @param {{entrySelector?:string, claimSelector?:string, entryKeywords:string[], blockWords:string[]}} spec
  */
-export async function runAction(page, kind, config, spec) {
+async function attemptAction(page, kind, config, spec) {
   const result = { kind, status: 'not_found', detail: '', clicks: [] };
   const already = await readFeedback(page);
 
@@ -403,6 +404,37 @@ export async function runAction(page, kind, config, spec) {
 }
 
 /** All visible clickable labels — used by --discover and failure diagnostics. */
+/**
+ * Run one allowed action with the requested retry policy:
+ *
+ *   try to claim → if a VIP/promo dialog appears, close it → try again
+ *
+ * The number of attempts is config.maxAttempts (default 3).
+ */
+export async function runAction(page, kind, config, spec) {
+  const attempts = Math.max(1, config.maxAttempts || 3);
+  let last = null;
+
+  for (let i = 0; i < attempts; i += 1) {
+    last = await attemptAction(page, kind, config, spec);
+    if (['claimed', 'already', 'would_claim'].includes(last.status)) {
+      if (i > 0) last.detail += ` (succeeded on attempt ${i + 1})`;
+      return last;
+    }
+
+    // A VIP / activity overlay probably swallowed the click. Close it, then
+    // re-open the page state and try again.
+    const closed = await dismissPromos(page);
+    if (closed.length > 0) {
+      last.detail += ` | closed promo: ${closed.join(',')}`;
+      last.clicks.push({ step: 'dismiss', text: closed.join(',') });
+    }
+    await page.waitForTimeout(1_500);
+  }
+
+  return last;
+}
+
 export async function listLabels(page, limit = 150) {
   return page.evaluate((max) => {
     const flat = (s) => String(s || '').replace(/\s+/gu, '');

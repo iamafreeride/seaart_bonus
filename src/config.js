@@ -50,6 +50,10 @@ export function loadConfig(env = process.env, argv = []) {
     timeoutMs: int(env.SEAART_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
     settleMs: int(env.SEAART_SETTLE_MS, 2_500),
     slowMo: int(env.SEAART_SLOW_MO, 0),
+    // Overall patience: how long to wait for the SPA to render, in seconds.
+    waitSeconds: Math.max(5, int(env.SEAART_WAIT_SECONDS, 60)),
+    // claim -> promo appears -> close -> retry
+    maxAttempts: Math.max(1, int(env.SEAART_MAX_ATTEMPTS, 3)),
     // Task pages. Verified 2026-11-12 against a live account:
     //  - daily check-in lives in the battle-pass "season tasks → daily" panel
     //  - daily gift box lives on the decorations (飾品商城) page
@@ -72,6 +76,8 @@ export function loadConfig(env = process.env, argv = []) {
       giftClaim: (env.SEAART_GIFT_CLAIM || env.SEAART_CLAIM_BUTTON || '.gift-button').trim()
     }
   };
+
+  config.waitMs = config.waitSeconds * 1_000;
 
   config.cookies = missing.length === 0
     ? parseCookieHeader(config.cookie, config.cookieDomain)
