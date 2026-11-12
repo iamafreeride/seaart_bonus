@@ -221,6 +221,13 @@ export async function runAction(page, kind, config, spec) {
     const locator = page.locator(spec.entrySelector).first();
     const before = (await locator.innerText().catch(() => '')).replace(/\s+/gu, '');
     entryWasDone = /已領取|已领取|已簽到|已签到/.test(before);
+    // Already claimed today: do not click anything at all.
+    if (entryWasDone) {
+      entryText = before;
+      result.status = 'already';
+      result.detail = 'already claimed today (entry already shows done)';
+      return result;
+    }
     const hit = await clickSelector(page, spec.entrySelector).catch(() => null);
     if (hit) {
       entryText = hit.text || before;
