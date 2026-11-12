@@ -142,7 +142,14 @@ async function robustClick(page, locator) {
       await locator.click({ timeout: 6_000 });
       return true;
     } catch {
-      return false;
+      // Last resort: dispatch the click on the element itself. This still runs
+      // the app's own handler, it only skips the overlay hit-testing.
+      try {
+        await locator.evaluate((el) => el.click());
+        return true;
+      } catch {
+        return false;
+      }
     }
   }
 }
@@ -223,6 +230,27 @@ async function readFeedback(page) {
 }
 
 /**
+ * The check-in strip lives inside the "每日" tab of the season tasks. Some
+ * accounts land on 每周/懸賞 instead, so the button simply is not in the DOM.
+ */
+async function ensureDailyTab(page) {
+  const tabs = page.locator('.switch-tabs__item');
+  const count = await tabs.count().catch(() => 0);
+  for (let i = 0; i < count; i += 1) {
+    const tab = tabs.nth(i);
+    const text = (await tab.innerText().catch(() => '')).replace(/\s+/gu, '');
+    if (!text.includes('每日')) continue;
+    const active = await tab
+      .evaluate((el) => String(el.className).includes('is-active'))
+      .catch(() => false);
+    if (!active) await tab.click({ timeout: 3_000 }).catch(() => {});
+    await page.waitForTimeout(700);
+    return true;
+  }
+  return false;
+}
+
+/**
  * Perform one allowed action: open the entry (when needed), claim once, skip
  * any animation, then report what the page says afterwards.
  *
@@ -235,40 +263,56 @@ export async function runAction(page, kind, config, spec) {
   const result = { kind, status: 'not_found', detail: '', clicks: [] };
   const already = await readFeedback(page);
 
+  // 0) The check-in strip only renders on the "每日" tab.
+  if (kind === 'checkin') await ensureDailyTab(page);
+
   // 1) Entry: an explicit selector wins; otherwise scan by label.
   let entryText = '';
   let entryWasDone = false;
+  let entryError = '';
   if (spec.entrySelector) {
     const locator = page.locator(spec.entrySelector).first();
-    const before = (await locator.innerText().catch(() => '')).replace(/\s+/gu, '');
-    entryWasDone = /已領取|已领取|已簽到|已签到/.test(before);
-    // Already claimed today: do not click anything at all.
-    if (entryWasDone) {
-      entryText = before;
-      result.status = 'already';
-      result.detail = 'already claimed today (entry already shows done)';
-      return result;
+    const exists = await locator.count().catch(() => 0);
+    if (exists === 0) {
+      entryError = `selector ${spec.entrySelector} not found`;
+    } else {
+      await locator.waitFor({ state: 'visible', timeout: 8_000 }).catch(() => {});
+      const before = (await locator.innerText().catch(() => '')).replace(/\s+/gu, '');
+      entryWasDone = /已領取|已领取|已簽到|已签到/.test(before);
+      // Already claimed today: do not click anything at all.
+      if (entryWasDone) {
+        entryText = before;
+        result.status = 'already';
+        result.detail = 'already claimed today (entry already shows done)';
+        return result;
+      }
+      try {
+        await clickSelector(page, spec.entrySelector);
+        entryText = before;
+        result.clicks.push({ step: 'entry', text: before || '(no text)' });
+        await page.waitForTimeout(config.settleMs);
+      } catch (err) {
+        entryError = err.message;
+      }
     }
-    const hit = await clickSelector(page, spec.entrySelector).catch(() => null);
-    if (hit) {
-      entryText = hit.text || before;
-      result.clicks.push({ step: 'entry', text: entryText });
-      await page.waitForTimeout(config.settleMs);
-    }
-  } else if (!spec.claimSelector) {
+  }
+
+  // 1b) Fallback: locate the entry by its label when the selector failed.
+  if (!entryText && !entryWasDone) {
     const entries = await scanCandidates(page, { keywords: spec.entryKeywords });
     const usable = entries.filter(
       (c) => !c.disabled && !c.blockedByHint && !spec.blockWords.some((w) => c.text.includes(w))
     );
     if (usable.length > 0) {
-      if (!config.dryRun) {
-        await clickCandidate(page, usable[0].id).catch((err) => {
-          result.detail += `entry click failed: ${err.message}; `;
-        });
+      try {
+        if (!config.dryRun) await clickCandidate(page, usable[0].id);
+        entryText = usable[0].text;
+        result.clicks.push({ step: 'entry (label)', text: usable[0].text });
+        entryError = '';
+        await page.waitForTimeout(config.settleMs);
+      } catch (err) {
+        entryError += ` | label click failed: ${err.message}`;
       }
-      entryText = usable[0].text;
-      result.clicks.push({ step: 'entry', text: usable[0].text });
-      await page.waitForTimeout(config.settleMs);
     }
   }
 
@@ -305,7 +349,7 @@ export async function runAction(page, kind, config, spec) {
         ? 'already claimed today'
         : feedback.done
           ? 'already claimed (done marker present)'
-          : 'no claim target found';
+          : `no claim target found${entryError ? ` (${entryError})` : ''}`;
     return result;
   }
 
