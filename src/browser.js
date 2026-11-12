@@ -91,9 +91,37 @@ export async function probeLogin(page) {
   return { loggedIn, evidence: probe };
 }
 
+/**
+ * SeaArt is a Nuxt SPA: the SSR placeholder disappears long before the season
+ * panel renders (observed up to ~10s on battlePass). Acting too early finds no
+ * buttons at all, so wait for a real content signal first.
+ */
+async function waitForAppReady(page, timeoutMs = 20_000) {
+  await page.waitForSelector('.ssr-loading', { state: 'detached', timeout: 8_000 }).catch(() => {});
+
+  const signals = [
+    '.battle-pass-page',
+    '.checkin-task',
+    '.gift-button',
+    '.mall-tabs-v2',
+    '#__nuxt > div',
+    'main'
+  ];
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    for (const sel of signals) {
+      if (await page.locator(sel).first().count().catch(() => 0)) return true;
+    }
+    await page.waitForTimeout(400);
+  }
+  return false;
+}
+
 export async function gotoAndSettle(page, url, settleMs, log = () => {}) {
   await page.goto(url, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(settleMs);
+  const ready = await waitForAppReady(page);
+  if (!ready) log('warning: app did not report ready within 20s; continuing anyway');
+  await page.waitForTimeout(Math.max(600, Math.floor(settleMs / 2)));
   // Cookie/announcement overlays first, then paid VIP promotions: both would
   // otherwise intercept pointer events on the real buttons.
   await dismissOverlays(page);

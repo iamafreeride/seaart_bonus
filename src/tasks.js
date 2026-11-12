@@ -263,8 +263,13 @@ export async function runAction(page, kind, config, spec) {
   const result = { kind, status: 'not_found', detail: '', clicks: [] };
   const already = await readFeedback(page);
 
-  // 0) The check-in strip only renders on the "每日" tab.
-  if (kind === 'checkin') await ensureDailyTab(page);
+  // 0) The check-in strip only renders on the "每日" tab, and can mount late.
+  if (kind === 'checkin') {
+    await ensureDailyTab(page);
+    await page
+      .waitForSelector('.checkin-task, .checkin-go-btn', { timeout: 8_000 })
+      .catch(() => {});
+  }
 
   // 1) Entry: an explicit selector wins; otherwise scan by label.
   let entryText = '';
@@ -274,7 +279,15 @@ export async function runAction(page, kind, config, spec) {
     const locator = page.locator(spec.entrySelector).first();
     const exists = await locator.count().catch(() => 0);
     if (exists === 0) {
-      entryError = `selector ${spec.entrySelector} not found`;
+      // Report what the season panel actually shows, so the log is actionable.
+      const peek = (await page
+        .locator('.tiv2-right__header, .battle-pass-page, .battle-pass-container')
+        .first()
+        .innerText()
+        .catch(() => ''))
+        .replace(/\s+/gu, '')
+        .slice(0, 80);
+      entryError = `selector ${spec.entrySelector} not found${peek ? ` [page: ${peek}]` : ''}`;
     } else {
       await locator.waitFor({ state: 'visible', timeout: 8_000 }).catch(() => {});
       const before = (await locator.innerText().catch(() => '')).replace(/\s+/gu, '');
