@@ -50,24 +50,26 @@ export function loadConfig(env = process.env, argv = []) {
     timeoutMs: int(env.SEAART_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
     settleMs: int(env.SEAART_SETTLE_MS, 2_500),
     slowMo: int(env.SEAART_SLOW_MO, 0),
-    // Task pages: the two surfaces named in the requirement, plus a home
-    // fallback because daily widgets are sometimes only mounted there.
+    // Task pages. Verified 2026-11-12 against a live account:
+    //  - daily check-in lives in the battle-pass "season tasks → daily" panel
+    //  - daily gift box lives on the decorations (飾品商城) page
     urls: {
       checkin: (env.SEAART_CHECKIN_URL ||
         'https://www.seaart.ai/zhTW/battlePass').trim(),
       gift: (env.SEAART_GIFT_URL ||
-        'https://www.seaart.ai/zhTW/mall?dotFrom=svip_banner').trim(),
+        'https://www.seaart.ai/zhTW/decorations').trim(),
       home: (env.SEAART_HOME_URL || 'https://www.seaart.ai/zhTW').trim()
     },
     discover: flags.has('--discover') || bool(env.SEAART_DISCOVER, false),
     // Optional localStorage snapshot (JSON object). Some sites keep part of the
     // session there, so cookie-only login can look "logged in" but not be.
     localStorage: parseJsonObject(env.SEAART_LOCAL_STORAGE),
-    // Manual overrides for when the site changes. CSS selectors.
+    // Verified selectors are defaults; env vars only override them.
     selectors: {
-      checkinEntry: (env.SEAART_CHECKIN_ENTRY || '').trim(),
+      checkinEntry: (env.SEAART_CHECKIN_ENTRY || '.checkin-go-btn').trim(),
+      checkinClaim: (env.SEAART_CHECKIN_CLAIM || '').trim(),
       giftEntry: (env.SEAART_GIFT_ENTRY || '').trim(),
-      claimButton: (env.SEAART_CLAIM_BUTTON || '').trim()
+      giftClaim: (env.SEAART_GIFT_CLAIM || env.SEAART_CLAIM_BUTTON || '.gift-button').trim()
     }
   };
 

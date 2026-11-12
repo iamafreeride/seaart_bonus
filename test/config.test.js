@@ -15,20 +15,34 @@ test('missing credentials are reported, not thrown', () => {
   assert.deepEqual(config.cookies, []);
 });
 
-test('defaults match the two required surfaces', () => {
+test('defaults match the verified surfaces', () => {
   const { config } = loadConfig(
     { SEAART_COOKIE: 'a=1', SEAART_USER_AGENT: 'UA/1.0' },
     []
   );
+  // Verified against a live account on 2026-11-12.
   assert.equal(config.urls.checkin, 'https://www.seaart.ai/zhTW/battlePass');
-  assert.equal(
-    config.urls.gift,
-    'https://www.seaart.ai/zhTW/mall?dotFrom=svip_banner'
-  );
+  assert.equal(config.urls.gift, 'https://www.seaart.ai/zhTW/decorations');
+  assert.equal(config.selectors.checkinEntry, '.checkin-go-btn');
+  assert.equal(config.selectors.giftClaim, '.gift-button');
   assert.equal(config.locale, 'zhTW');
   assert.equal(config.headless, true);
   assert.equal(config.dryRun, false);
   assert.equal(config.cookies.length, 1);
+});
+
+test('selector env vars override the verified defaults', () => {
+  const { config } = loadConfig(
+    {
+      SEAART_COOKIE: 'a=1',
+      SEAART_USER_AGENT: 'UA/1.0',
+      SEAART_CHECKIN_ENTRY: '.my-checkin',
+      SEAART_GIFT_CLAIM: '.my-gift'
+    },
+    []
+  );
+  assert.equal(config.selectors.checkinEntry, '.my-checkin');
+  assert.equal(config.selectors.giftClaim, '.my-gift');
 });
 
 test('CLI flags override environment', () => {

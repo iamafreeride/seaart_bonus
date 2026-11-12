@@ -19,14 +19,16 @@ const TASKS = [
     label: '每日簽到',
     urlKeys: ['checkin', 'home'],
     entryKeywords: ['簽到', '签到'],
-    overrideKey: 'checkinEntry'
+    entryKey: 'checkinEntry',
+    claimKey: 'checkinClaim'
   },
   {
     kind: 'gift',
     label: '每日禮盒',
     urlKeys: ['gift', 'home'],
     entryKeywords: ['每日禮盒', '禮盒', '礼盒'],
-    overrideKey: 'giftEntry'
+    entryKey: 'giftEntry',
+    claimKey: 'giftClaim'
   }
 ];
 
@@ -117,8 +119,8 @@ async function main() {
           res = await runAction(session.page, task.kind, config, {
             entryKeywords: task.entryKeywords,
             blockWords: BLOCK_WORDS,
-            overrideSelector: config.selectors[task.overrideKey],
-            claimSelector: config.selectors.claimButton
+            entrySelector: config.selectors[task.entryKey],
+            claimSelector: config.selectors[task.claimKey]
           });
         } catch (err) {
           res = {

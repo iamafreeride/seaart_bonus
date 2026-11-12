@@ -13,10 +13,12 @@
 
 ## 一、只做兩件事
 
-| 動作 | 會做 |
-|---|---|
-| 每日簽到 | ✅ 開啟簽到面板並領取當日獎勵 |
-| 每日禮盒 | ✅ 開啟當日禮盒並領取 |
+| 動作 | 位置（2026-11-12 實測） | 選擇器 | 會做 |
+|---|---|---|---|
+| 每日簽到 | `battlePass` → 賽季任務「每日」分頁 | `.checkin-go-btn` | ✅ 點擊簽到，領取當日獎勵 |
+| 每日禮盒 | `/zhTW/decorations`（飾品商城） | `.gift-button`（免費打開） | ✅ 開啟當日禮盒，跳過開箱動畫 |
+
+> 簽到按鈕成功後會變成「已領取」；禮盒的免費次數用完後，按鈕會從「免費打開」變成付費的「99 開啟」。
 
 ## 二、明確不做
 
@@ -93,11 +95,12 @@ docker compose run --rm seaart-bonus
 | `SEAART_TIMEOUT_MS` | | `45000` | 導覽/元素逾時 |
 | `SEAART_SLOW_MO` | | `0` | 每步減速（除錯用） |
 | `SEAART_CHECKIN_URL` | | battlePass | 簽到頁 |
-| `SEAART_GIFT_URL` | | mall?dotFrom=svip_banner | 禮盒頁 |
+| `SEAART_GIFT_URL` | | `/zhTW/decorations` | 禮盒頁（飾品商城） |
 | `SEAART_HOME_URL` | | `/zhTW` | 找不到入口時的回退頁 |
-| `SEAART_CHECKIN_ENTRY` | | 自動 | 簽到入口 CSS |
-| `SEAART_GIFT_ENTRY` | | 自動 | 禮盒入口 CSS |
-| `SEAART_CLAIM_BUTTON` | | 自動 | 領取按鈕 CSS |
+| `SEAART_CHECKIN_ENTRY` | | `.checkin-go-btn` | 簽到按鈕 CSS（已驗證） |
+| `SEAART_CHECKIN_CLAIM` | | 空 | 簽到後的領取按鈕（本例不需要） |
+| `SEAART_GIFT_ENTRY` | | 空 | 禮盒入口（本例直接點按鈕） |
+| `SEAART_GIFT_CLAIM` | | `.gift-button` | 禮盒「免費打開」CSS（已驗證） |
 | `SEAART_DISCOVER` | | `false` | 等同 `--discover` |
 | `SEAART_LOCAL_STORAGE` | | `{}` | 選用：localStorage JSON，補足 cookie 不足的登入態 |
 | `SEAART_DUMP_DIR` | | `./dump` | 校正輸出目錄 |
@@ -115,19 +118,21 @@ docker run
    ├─ 解析 SEAART_COOKIE → Playwright cookie（domain .seaart.ai）
    ├─ 建立 context（UA / zh-TW / Asia/Taipei / 1440x1000）
    │
-   ├─ goto battlePass  → 偵測登入狀態
-   │     └─ 找「簽到」入口 → 點擊 → 面板內找「領取」→ 點擊 → 驗證
+   ├─ goto battlePass → 偵測登入
+   │     └─ click .checkin-go-btn（賽季任務「每日」的簽到）
+   │           └─ 按鈕變「已領取」→ claimed
    │
-   ├─ goto mall?dotFrom=svip_banner
-   │     └─ 找「禮盒」入口 → 點擊 → 面板內找「開啟/領取」→ 點擊 → 驗證
+   ├─ goto /zhTW/decorations
+   │     └─ click .gift-button（每日免費禮盒「免費打開」）
+   │           └─ 跳過開箱動畫 → 按鈕消失/變付費 → claimed
    │
    └─ 輸出 JSON 摘要 → 關閉瀏覽器 → 進程結束（容器停止）
 ```
 
-定位方式為「文字關鍵字 + 可點擊性 + 可見性」，不依賴固定的 hash class，
-因此站方小改版通常仍可運作；大改版可用 `--dump` 重新校正。
+定位採「已驗證的 CSS 選擇器優先，關鍵字掃描為備援」：選擇器失效時，
+會退回文字關鍵字（含 `aria-label` / `img alt`）並自動往上找可點擊祖先。
 
-成功判定：頁面出現 `已領取 / 已簽到 / 領取成功 / 明天再來` 等完成字樣，或出現成功 toast。
+成功判定：`已領取 / 已簽到 / 成功 / 恭喜` 等字樣，或（禮盒）觸發按鈕消失。
 
 ---
 
@@ -141,8 +146,8 @@ docker run
 docker run --rm --env-file .env seaart-bonus --discover
 ```
 
-它會走訪 battlePass → mall → 首頁，列出每個頁面上所有可見可點元素（含 class），
-把輸出貼回來就能定位真正的「簽到 / 禮盒」入口。
+它會走訪 battlePass → decorations → 首頁，列出每個頁面上所有可見可點元素（含 class），
+把輸出貼回來就能定位真正的入口。
 
 **再看快照：**
 
@@ -155,17 +160,21 @@ docker run --rm --env-file .env -v "$PWD/dump:/tmp/seaart-dump" \
 從中挑出正確元素的 CSS，寫進 `.env`：
 
 ```env
-SEAART_CHECKIN_ENTRY=div.daily-sign-entry
-SEAART_GIFT_ENTRY=div.daily-gift-entry
-SEAART_CLAIM_BUTTON=button.claim-btn
+SEAART_CHECKIN_ENTRY=.checkin-go-btn
+SEAART_GIFT_CLAIM=.gift-button
 ```
 
-### 已發生的實例（2026-11-12）
+### 已解決的實例（2026-11-12）
 
-日誌顯示 `session: logged in`，但 battlePass 與 mall 都 `not_found` ——
-表示**這兩個頁面在登入狀態下並沒有「簽到／禮盒」元素**（站方的每日獎勵是浮動元件，
-可能只在首頁或創作頁掛載）。因此 v1.1 起會自動回退到首頁，並在失敗時直接印出頁面上
-含「簽/禮/盒/每日/獎/領/福」的可點元素。若仍找不到，用 `--discover` 的完整清單定位。
+第一版在 battlePass 與 mall 都回報 `not_found`，原因是**入口根本不在那兩頁**：
+
+- 「每日簽到」在 battlePass 的 **賽季任務 → 每日** 面板裡（7 天格 + `簽到` 按鈕），
+  選擇器 `.checkin-go-btn`；點擊後按鈕文字變成「已領取」。
+- 「每日禮盒」在 **`/zhTW/decorations`（飾品商城）** 的「每日免費」卡片上，
+  選擇器 `.gift-button`；點擊後是全螢幕開箱動畫（可按「跳過」），
+  免費次數用完後按鈕會變成付費的「99 開啟」。
+
+v1.3 起這兩個選擇器已是預設值，不需要任何額外設定。
 
 ---
 
