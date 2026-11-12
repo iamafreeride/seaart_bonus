@@ -61,8 +61,16 @@ export const ENTRY_PATTERNS = {
 
 /** Container hints (class/id) that mean "not our business". */
 export const BLOCK_CONTAINER_HINTS = [
-  'battle-pass-level',
+  // Battle-pass level-reward track. Observed 2026-11-12 as
+  // <div class="level-col__btn">領取</div> — must never be clicked.
+  'level-col',
   'level-reward',
+  'level-track',
+  'level-award',
+  'level-card',
+  'level-progress',
+  'tiv2-left__level',
+  'battle-pass-level',
   'reward-track',
   'backpack',
   'blind-box',
@@ -72,6 +80,10 @@ export const BLOCK_CONTAINER_HINTS = [
   'payment',
   'pay-'
 ];
+
+/** Overlay containers: claims are only ever clicked inside one of these. */
+export const DIALOG_SELECTOR =
+  '[role="dialog"], .el-dialog, .el-overlay-dialog, .el-message-box, .el-drawer';
 
 export function normalize(text) {
   return String(text ?? '').replace(/\s+/gu, '');

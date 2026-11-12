@@ -5,8 +5,23 @@ import {
   findBlockWord,
   isClaimLabel,
   isEntryLabel,
-  BLOCK_WORDS
+  BLOCK_WORDS,
+  BLOCK_CONTAINER_HINTS,
+  DIALOG_SELECTOR
 } from '../src/guard.js';
+
+test('the battle-pass level track is blocked by container hint', () => {
+  // Regression: 2026-11-12 the scanner picked
+  // <div class="level-col__btn">領取</div> (a level reward).
+  assert.ok(BLOCK_CONTAINER_HINTS.includes('level-col'));
+  assert.ok(BLOCK_CONTAINER_HINTS.includes('level-reward'));
+  assert.ok(BLOCK_CONTAINER_HINTS.includes('battle-pass-level'));
+});
+
+test('claims are scoped to a dialog container', () => {
+  assert.match(DIALOG_SELECTOR, /\[role="dialog"\]/);
+  assert.match(DIALOG_SELECTOR, /el-dialog/);
+});
 
 test('parseCookieHeader splits a raw header', () => {
   const cookies = parseCookieHeader('a=1; b=two=three; c=;', '.seaart.ai');
