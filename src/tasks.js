@@ -43,14 +43,37 @@ export async function scanCandidates(page, { keywords, clickableOnly = true, lim
         }
         return parts.join(' | ');
       };
+      // A label can live in text, aria-label, title, or an icon's alt text.
+      const labelOf = (el) => {
+        const own = flat(el.innerText);
+        if (own) return own.slice(0, 60);
+        const aria = flat(el.getAttribute('aria-label'));
+        if (aria) return aria.slice(0, 60);
+        const title = flat(el.getAttribute('title'));
+        if (title) return title.slice(0, 60);
+        const img = el.querySelector('img');
+        return img ? flat(img.getAttribute('alt')).slice(0, 60) : '';
+      };
+      // Icon-only entries are often wrapped in a plain div; climb to the
+      // nearest clickable ancestor so the click still lands properly.
+      const clickTarget = (el) => {
+        let p = el;
+        for (let i = 0; i < 4 && p; i += 1) {
+          if (isClickable(p)) return p;
+          p = p.parentElement;
+        }
+        return null;
+      };
+
       const nodes = Array.from(
-        document.querySelectorAll('a,button,[role="button"],div,span,li,label')
+        document.querySelectorAll(
+          'a,button,[role="button"],div,span,li,label,img,svg,i'
+        )
       ).filter((el) => {
-        const text = flat(el.innerText);
-        if (!text || text.length > 60) return false;
-        if (!keywords.some((kw) => text.includes(kw))) return false;
+        const label = labelOf(el);
+        if (!label || label.length > 60) return false;
+        if (!keywords.some((kw) => label.includes(kw))) return false;
         if (!isVisible(el)) return false;
-        if (clickableOnly && !isClickable(el)) return false;
         return true;
       });
 
@@ -60,23 +83,30 @@ export async function scanCandidates(page, { keywords, clickableOnly = true, lim
       );
 
       const out = [];
-      matched.slice(0, limit).forEach((el, i) => {
-        el.setAttribute('data-sb-cand', String(i));
-        const chain = chainInfo(el);
-        const cls = typeof el.className === 'string' ? el.className : '';
+      const used = new Set();
+      for (const el of matched) {
+        if (out.length >= limit) break;
+        const target = clickTarget(el);
+        if (!target) continue;
+        if (used.has(target)) continue;
+        used.add(target);
+        const id = out.length;
+        target.setAttribute('data-sb-cand', String(id));
+        const chain = chainInfo(target);
+        const cls = typeof target.className === 'string' ? target.className : '';
         const disabled =
-          el.hasAttribute('disabled') ||
-          el.getAttribute('aria-disabled') === 'true' ||
+          target.hasAttribute('disabled') ||
+          target.getAttribute('aria-disabled') === 'true' ||
           /is-disabled|disabled/.test(cls);
         out.push({
-          id: i,
-          text: flat(el.innerText).slice(0, 60),
-          clickable: isClickable(el),
+          id,
+          text: labelOf(el) || cls.slice(0, 40),
+          clickable: true,
           disabled,
           blockedByHint: blockHints.some((h) => chain.toLowerCase().includes(h)),
           chain: chain.slice(0, 200)
         });
-      });
+      }
       return out;
     },
     {
@@ -223,6 +253,49 @@ export async function runAction(page, kind, config, spec) {
       ? 'claimed (success toast seen)'
       : 'clicked, but success could not be confirmed';
   return result;
+}
+
+/** All visible clickable labels — used by --discover and failure diagnostics. */
+export async function listLabels(page, limit = 150) {
+  return page.evaluate((max) => {
+    const flat = (s) => String(s || '').replace(/\s+/gu, '');
+    const isVisible = (el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width <= 1 || r.height <= 1) return false;
+      const st = getComputedStyle(el);
+      return st.visibility !== 'hidden' && st.display !== 'none' && st.opacity !== '0';
+    };
+    const nodes = Array.from(
+      document.querySelectorAll(
+        'button,a,[role="button"],[class*="btn"],[class*="entry"],[class*="item"],[class*="icon"]'
+      )
+    );
+    const seen = new Set();
+    const out = [];
+    for (const el of nodes) {
+      if (out.length >= max) break;
+      if (!isVisible(el)) continue;
+      const img = el.querySelector('img');
+      const label =
+        flat(el.innerText) ||
+        el.getAttribute('aria-label') ||
+        el.getAttribute('title') ||
+        (img ? flat(img.getAttribute('alt')) : '');
+      if (!label || label.length > 30) continue;
+      const cls = typeof el.className === 'string' ? el.className : '';
+      const key = `${label}#${cls.slice(0, 30)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        tag: el.tagName,
+        text: label,
+        cls: cls.slice(0, 60),
+        disabled:
+          el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true'
+      });
+    }
+    return out;
+  }, limit);
 }
 
 /** Dump page state + labelled candidates for selector calibration. */

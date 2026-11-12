@@ -38,13 +38,16 @@ export function loadConfig(env = process.env, argv = []) {
     timeoutMs: int(env.SEAART_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
     settleMs: int(env.SEAART_SETTLE_MS, 2_500),
     slowMo: int(env.SEAART_SLOW_MO, 0),
-    // Task pages: the two surfaces named in the requirement.
+    // Task pages: the two surfaces named in the requirement, plus a home
+    // fallback because daily widgets are sometimes only mounted there.
     urls: {
       checkin: (env.SEAART_CHECKIN_URL ||
         'https://www.seaart.ai/zhTW/battlePass').trim(),
       gift: (env.SEAART_GIFT_URL ||
-        'https://www.seaart.ai/zhTW/mall?dotFrom=svip_banner').trim()
+        'https://www.seaart.ai/zhTW/mall?dotFrom=svip_banner').trim(),
+      home: (env.SEAART_HOME_URL || 'https://www.seaart.ai/zhTW').trim()
     },
+    discover: flags.has('--discover') || bool(env.SEAART_DISCOVER, false),
     // Manual overrides for when the site changes. CSS selectors.
     selectors: {
       checkinEntry: (env.SEAART_CHECKIN_ENTRY || '').trim(),

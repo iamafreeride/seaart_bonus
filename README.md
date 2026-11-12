@@ -94,12 +94,15 @@ docker compose run --rm seaart-bonus
 | `SEAART_SLOW_MO` | | `0` | 每步減速（除錯用） |
 | `SEAART_CHECKIN_URL` | | battlePass | 簽到頁 |
 | `SEAART_GIFT_URL` | | mall?dotFrom=svip_banner | 禮盒頁 |
+| `SEAART_HOME_URL` | | `/zhTW` | 找不到入口時的回退頁 |
 | `SEAART_CHECKIN_ENTRY` | | 自動 | 簽到入口 CSS |
 | `SEAART_GIFT_ENTRY` | | 自動 | 禮盒入口 CSS |
 | `SEAART_CLAIM_BUTTON` | | 自動 | 領取按鈕 CSS |
+| `SEAART_DISCOVER` | | `false` | 等同 `--discover` |
 | `SEAART_DUMP_DIR` | | `./dump` | 校正輸出目錄 |
 
-CLI 旗標：`--headed`（顯示瀏覽器）、`--dry-run`（只找不點）、`--dump`（匯出頁面與按鈕清單）。
+CLI 旗標：`--headed`（顯示瀏覽器）、`--dry-run`（只找不點）、`--dump`（匯出頁面與按鈕清單）、
+`--discover`（只列出可點元素，完全不點擊）。
 
 ---
 
@@ -129,7 +132,18 @@ docker run
 
 ## 六、校正選擇器
 
-站方改版導致 `not_found` 時：
+站方改版導致 `not_found` 時。
+
+**先看診斷（不改任何設定、不點擊任何東西）：**
+
+```bash
+docker run --rm --env-file .env seaart-bonus --discover
+```
+
+它會走訪 battlePass → mall → 首頁，列出每個頁面上所有可見可點元素（含 class），
+把輸出貼回來就能定位真正的「簽到 / 禮盒」入口。
+
+**再看快照：**
 
 ```bash
 docker run --rm --env-file .env -v "$PWD/dump:/tmp/seaart-dump" \
@@ -144,6 +158,13 @@ SEAART_CHECKIN_ENTRY=div.daily-sign-entry
 SEAART_GIFT_ENTRY=div.daily-gift-entry
 SEAART_CLAIM_BUTTON=button.claim-btn
 ```
+
+### 已發生的實例（2026-11-12）
+
+日誌顯示 `session: logged in`，但 battlePass 與 mall 都 `not_found` ——
+表示**這兩個頁面在登入狀態下並沒有「簽到／禮盒」元素**（站方的每日獎勵是浮動元件，
+可能只在首頁或創作頁掛載）。因此 v1.1 起會自動回退到首頁，並在失敗時直接印出頁面上
+含「簽/禮/盒/每日/獎/領/福」的可點元素。若仍找不到，用 `--discover` 的完整清單定位。
 
 ---
 
