@@ -1,3 +1,5 @@
+import { dismissPromos } from './promos.js';
+
 /**
  * Launch Chromium and build an authenticated context from the raw cookie
  * header plus the user agent. No credential ever leaves this process.
@@ -89,10 +91,13 @@ export async function probeLogin(page) {
   return { loggedIn, evidence: probe };
 }
 
-export async function gotoAndSettle(page, url, settleMs) {
+export async function gotoAndSettle(page, url, settleMs, log = () => {}) {
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(settleMs);
-  // Dismiss cookie/announcement overlays that would swallow clicks.
+  // Cookie/announcement overlays first, then paid VIP promotions: both would
+  // otherwise intercept pointer events on the real buttons.
+  await dismissOverlays(page);
+  await dismissPromos(page, log);
   await dismissOverlays(page);
 }
 

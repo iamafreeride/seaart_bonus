@@ -124,7 +124,27 @@ export async function scanCandidates(page, { keywords, limit = 40, rootSelector 
 async function clickCandidate(page, id) {
   const locator = page.locator(`[data-sb-cand="${id}"]`).first();
   await locator.scrollIntoViewIfNeeded({ timeout: 3_000 }).catch(() => {});
-  await locator.click({ timeout: 5_000 });
+  if (!(await robustClick(page, locator))) throw new Error('click intercepted after retry');
+}
+
+/**
+ * Click with one Escape-then-retry fallback: paid VIP promotion overlays and
+ * announcement modals routinely intercept pointer events on the first try.
+ */
+async function robustClick(page, locator) {
+  try {
+    await locator.click({ timeout: 6_000 });
+    return true;
+  } catch {
+    await page.keyboard.press('Escape').catch(() => {});
+    await page.waitForTimeout(500);
+    try {
+      await locator.click({ timeout: 6_000 });
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
 
 /** Click a configured CSS selector and report what it was. */
@@ -133,7 +153,8 @@ async function clickSelector(page, selector) {
   if (!(await locator.count().catch(() => 0))) return null;
   const text = (await locator.innerText().catch(() => '')).replace(/\s+/gu, '').slice(0, 40);
   await locator.scrollIntoViewIfNeeded({ timeout: 3_000 }).catch(() => {});
-  await locator.click({ timeout: 5_000 });
+  const ok = await robustClick(page, locator);
+  if (!ok) throw new Error(`could not click ${selector} (overlay intercepts)`);
   return { text };
 }
 
