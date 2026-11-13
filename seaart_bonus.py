@@ -204,7 +204,10 @@ class SeaArtClient:
                     log(f"    HTTP {response.status_code} {path}")
                 if response.status_code == 401:
                     raise SeaArtError("cookie rejected (HTTP 401) — re-export it from a logged-in browser")
-                if response.status_code >= 500:
+                if response.status_code == 429 or response.status_code >= 500:
+                    if attempt < MAX_ATTEMPTS:
+                        time.sleep(RETRY_BACKOFF * attempt)
+                        continue
                     raise SeaArtError(f"server error HTTP {response.status_code}")
                 try:
                     data = response.json()
