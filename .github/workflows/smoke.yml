@@ -1,0 +1,29 @@
+name: Container smoke test
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t seaart-bonus:smoke .
+
+      - name: Entrypoint fails closed without credentials
+        run: |
+          set +e
+          docker run --rm seaart-bonus:smoke
+          code=$?
+          echo "container exit code: $code"
+          test "$code" -eq 2
+
+      - name: Module and allow-list are importable inside the image
+        run: |
+          docker run --rm --entrypoint python3 seaart-bonus:smoke -c \
+            "import seaart_bonus as s; print(sorted(s.ALLOWED_PATHS)); assert len(s.ALLOWED_PATHS) == 4"
