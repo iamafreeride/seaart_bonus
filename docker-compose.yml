@@ -1,0 +1,16 @@
+services:
+  seaart-bonus:
+    build: .
+    image: seaart_bonus:latest
+    container_name: seaart-bonus
+    env_file:
+      - .env
+    # Run once and exit; `docker compose run --rm` also removes the container.
+    restart: "no"
+    # The program only needs outbound HTTPS: no writable root filesystem, so a
+    # cookie can never be persisted inside the container.
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m,mode=1777
+    security_opt:
+      - no-new-privileges:true

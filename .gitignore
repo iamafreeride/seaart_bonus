@@ -1,0 +1,15 @@
+# Secrets — never commit real cookies or user agents.
+.env
+.env.*
+!.env.example
+
+# Runtime output
+*.log
+dump/
+run.log
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
