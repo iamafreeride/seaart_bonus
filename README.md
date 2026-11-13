@@ -226,6 +226,7 @@ python3 seaart_bonus.py --dry-run    # 需要先 export SEAART_COOKIE / SEAART_U
 ```
 seaart_bonus.py        # 主程式（單檔、無瀏覽器）
 tests/test_core.py     # 純函式與白名單測試（不需網路）
+tests/test_flow.py     # 以假 API 跑完整流程（claim → open，不需網路）
 Dockerfile             # python:3.12-alpine，非 root，映像檔 < 100 MB
 docker-compose.yml     # 唯讀檔案系統 + tmpfs
 .env.example           # 設定範例（不含真實憑證）

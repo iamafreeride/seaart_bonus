@@ -1,4 +1,4 @@
-name: Container smoke test
+name: Tests and container smoke test
 
 on:
   push:
@@ -6,6 +6,23 @@ on:
   workflow_dispatch:
 
 jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+
+      - name: Run unit and flow tests
+        run: python -m unittest discover -s tests -v
+
   smoke:
     runs-on: ubuntu-latest
     steps:
@@ -15,15 +32,16 @@ jobs:
       - name: Build image
         run: docker build -t seaart-bonus:smoke .
 
-      - name: Entrypoint fails closed without credentials
+      - name: Entrypoint fails closed without credentials (read-only rootfs)
         run: |
           set +e
-          docker run --rm seaart-bonus:smoke
+          docker run --rm --read-only --tmpfs /tmp:size=8m seaart-bonus:smoke
           code=$?
           echo "container exit code: $code"
           test "$code" -eq 2
 
       - name: Module and allow-list are importable inside the image
         run: |
-          docker run --rm --entrypoint python3 seaart-bonus:smoke -c \
+          docker run --rm --read-only --tmpfs /tmp:size=8m \
+            --entrypoint python3 seaart-bonus:smoke -c \
             "import seaart_bonus as s; print(sorted(s.ALLOWED_PATHS)); assert len(s.ALLOWED_PATHS) == 4"
