@@ -37,7 +37,7 @@
 | 領取「等級獎勵」的獎勵物品 | ❌ 永遠不呼叫 |
 | 「一鍵全領」戰令獎勵 / 賽季任務獎勵 | ❌ 永遠不呼叫 |
 | 開啟「我的背包」內的驚喜盲盒 | ❌ 永遠不呼叫 |
-| 领取 `activity/blind-box/checkin`（會把簽到禮盒送進背包） | ❌ 永遠不呼叫 |
+| 領取 `activity/blind-box/checkin`（會把簽到禮盒送進背包） | ❌ 永遠不呼叫 |
 | 任何購買 / 訂閱 / 充值 / 兌換池 / 排行榜 | ❌ 永遠不呼叫 |
 
 ### 三層防線（不是靠「小心一點」）
@@ -46,7 +46,7 @@
    （`checkin/info`、`checkin`、`box-list`、`open-box`）。其他路徑在送出前就丟出
    `SeaArtError`，連線都不會建立。
 2. **只開免費每日禮盒**：`choose_daily_box()` 只回傳 `name_key=daily_box` 且
-   `free_times > 0` 的禮盒；`free_times == 0` 就直接跳過，不會誤開付费禮盒。
+   `free_times > 0` 的禮盒；`free_times == 0` 就直接跳過，不會誤開付費禮盒。
 3. **不碰背包訂單**：`/api/v1/ornament-shop/box-order-*`（我的背包 → 驚喜盲盒）
    完全不在白名單內。
 
